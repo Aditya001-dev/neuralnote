@@ -1,0 +1,257 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-display: 'Syne', system-ui;
+  --font-sans: 'Space Grotesk', system-ui;
+  --font-mono: 'JetBrains Mono', monospace;
+  --accent: #00e5a0;
+  --accent-glow: #00e5a040;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: #0a0a0f;
+  color: #e8e8f0;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e1e2e;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2e2e4e;
+}
+
+/* Selection */
+::selection {
+  background: #00e5a030;
+  color: #00e5a0;
+}
+
+/* Noise overlay */
+.noise::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.4;
+}
+
+/* Glow effects */
+.glow-accent {
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 60px #00e5a015;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px #00e5a060;
+}
+
+/* Accent underline */
+.accent-underline {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 4px;
+}
+
+/* Animated gradient border */
+.gradient-border {
+  position: relative;
+  background: #16161f;
+}
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, #00e5a030, transparent 50%, #00e5a010);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* Shimmer loading */
+.shimmer {
+  background: linear-gradient(90deg, #16161f 25%, #1e1e2e 50%, #16161f 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Editor styles */
+.editor-content {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.8;
+  color: #c8c8d8;
+  outline: none;
+  min-height: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.editor-content:empty::before {
+  content: attr(data-placeholder);
+  color: #4a4a6a;
+  pointer-events: none;
+}
+
+/* Markdown prose */
+.prose-nn {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #b8b8cc;
+}
+.prose-nn h1, .prose-nn h2, .prose-nn h3 {
+  color: #e8e8f0;
+  font-family: var(--font-display);
+  margin: 1rem 0 0.5rem;
+}
+.prose-nn h1 { font-size: 1.4rem; }
+.prose-nn h2 { font-size: 1.2rem; }
+.prose-nn h3 { font-size: 1rem; }
+.prose-nn p { margin: 0.5rem 0; }
+.prose-nn ul, .prose-nn ol { padding-left: 1.25rem; margin: 0.5rem 0; }
+.prose-nn li { margin: 0.25rem 0; }
+.prose-nn code {
+  background: #1e1e2e;
+  color: #00e5a0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+.prose-nn pre {
+  background: #111118;
+  border: 1px solid #1e1e2e;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+.prose-nn pre code {
+  background: transparent;
+  padding: 0;
+  color: #c8c8d8;
+}
+.prose-nn strong { color: #e8e8f0; font-weight: 600; }
+.prose-nn blockquote {
+  border-left: 2px solid #00e5a0;
+  padding-left: 1rem;
+  color: #8888aa;
+  margin: 0.75rem 0;
+}
+.prose-nn a { color: #00e5a0; text-decoration: underline; text-underline-offset: 3px; }
+.prose-nn hr { border-color: #1e1e2e; margin: 1rem 0; }
+
+/* Tag pills */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: #1e1e2e;
+  color: #8888aa;
+  border: 1px solid #2e2e4e;
+  transition: all 0.2s;
+}
+.tag-pill:hover {
+  background: #00e5a015;
+  color: #00e5a0;
+  border-color: #00e5a040;
+}
+
+/* Transitions */
+.transition-all { transition: all 0.2s ease; }
+
+/* Focus ring */
+.focus-accent:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px #00e5a040;
+}
+
+/* Grid bg */
+.grid-bg {
+  background-image: 
+    linear-gradient(#1e1e2e20 1px, transparent 1px),
+    linear-gradient(90deg, #1e1e2e20 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ─── Markdown table styles (were missing) ──────────────────────────────────── */
+.prose-nn table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  font-size: 13px;
+}
+.prose-nn th {
+  background: #16161f;
+  color: #e8e8f0;
+  font-weight: 600;
+  padding: 6px 12px;
+  text-align: left;
+  border: 1px solid #1e1e2e;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+.prose-nn td {
+  padding: 6px 12px;
+  border: 1px solid #1e1e2e;
+  color: #b8b8cc;
+}
+.prose-nn tr:nth-child(even) td {
+  background: #0f0f18;
+}
+.prose-nn tr:hover td {
+  background: #1a1a28;
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.2s ease forwards; }
+.animate-slide-up { animation: slide-up 0.25s ease forwards; }
+
+/* ─── Tailwind custom colors ─────────────────────────────────────────────────── */
