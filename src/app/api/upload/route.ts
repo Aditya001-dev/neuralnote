@@ -1,121 +1,51 @@
 import { NextRequest } from 'next/server';
-import { getOpenAI, getPineconeIndex, chunkText, getEmbeddingsBatch } from '@/lib/ai';
-import { v4 as uuid } from 'uuid';
+import { getGeminiModel, getEmbedding, getPineconeIndex } from '@/lib/ai';
 
 export const runtime = 'nodejs';
-export const maxDuration = 120;
-
-async function extractText(file: File): Promise<string> {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const ext = file.name.split('.').pop()?.toLowerCase();
-
-  if (ext === 'pdf') {
-    const pdfParse = (await import('pdf-parse')).default;
-    const data = await pdfParse(buffer);
-    return data.text;
-  }
-
-  if (ext === 'docx') {
-    const mammoth = await import('mammoth');
-    const result = await mammoth.extractRawText({ buffer });
-    return result.value;
-  }
-
-  if (ext === 'txt' || ext === 'md') {
-    return buffer.toString('utf-8');
-  }
-
-  throw new Error(`Unsupported file type: .${ext}`);
-}
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const { messages, noteContext, useRAG = false } = await req.json();
+    let ragContext = '';
+    let sources: { text: string; score: number }[] = [];
 
-    if (!file) {
-      return Response.json({ error: 'No file provided' }, { status: 400 });
+    if (useRAG && process.env.PINECONE_API_KEY) {
+      try {
+        const lastUserMsg = messages.filter((m: { role: string }) => m.role === 'user').at(-1)?.content || '';
+        const queryEmbedding = await getEmbedding(lastUserMsg);
+        const index = getPineconeIndex();
+        const results = await index.query({ vector: queryEmbedding, topK: 4, includeMetadata: true });
+        sources = results.matches.filter((m) => (m.score ?? 0) > 0.6).map((m) => ({ text: (m.metadata?.text as string) || '', score: m.score ?? 0 }));
+        if (sources.length > 0) ragContext = `\n\nRELEVANT CHUNKS:\n${sources.map((s, i) => `[${i + 1}] ${s.text}`).join('\n\n')}`;
+      } catch (e) { console.error('RAG error:', e); }
     }
 
-    // Validate file size (20MB max)
-    if (file.size > 20 * 1024 * 1024) {
-      return Response.json({ error: 'File too large (max 20MB)' }, { status: 400 });
-    }
+    const systemPrompt = `You are NeuralNote AI — an intelligent study companion. Help users understand their notes and documents. Use markdown formatting.\n${noteContext ? `CURRENT NOTE:\nTitle: ${noteContext.title}\n\nContent:\n${noteContext.content}` : ''}${ragContext}`;
+    const model = getGeminiModel('gemini-1.5-flash');
+    const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
+    const lastMessage = messages.at(-1)?.content || '';
+    const chat = model.startChat({ history, systemInstruction: systemPrompt });
 
-    const docId = uuid();
-    const text = await extractText(file);
-
-    if (!text.trim()) {
-      return Response.json({ error: 'Could not extract text from file' }, { status: 400 });
-    }
-
-    // Generate a summary of the document
-    const openai = getOpenAI();
-    const summaryRes = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'user',
-          content: `Summarize this document in 2-3 sentences and extract 5 key topics as a JSON object: {"summary": "...", "topics": ["...", "..."]}. Document: ${text.slice(0, 3000)}`,
-        },
-      ],
-      max_tokens: 300,
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          if (sources.length > 0) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'sources', sources })}\n\n`));
+          const result = await chat.sendMessageStream(lastMessage);
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'delta', content: text })}\n\n`));
+          }
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.close();
+        } catch (e) { controller.error(e); }
+      },
     });
 
-    let summary = '';
-    let topics: string[] = [];
-    try {
-      const raw = summaryRes.choices[0].message.content || '{}';
-      const cleaned = raw.replace(/```json|```/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      summary = parsed.summary || '';
-      topics = parsed.topics || [];
-    } catch {
-      summary = text.slice(0, 200);
-    }
-
-    // Chunk the text
-    const chunks = chunkText(text);
-    const chunkCount = chunks.length;
-
-    // If Pinecone is configured, embed and index
-    if (process.env.PINECONE_API_KEY) {
-      const BATCH_SIZE = 20;
-      const index = getPineconeIndex();
-
-      for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-        const batch = chunks.slice(i, i + BATCH_SIZE);
-        const embeddings = await getEmbeddingsBatch(batch);
-
-        const vectors = batch.map((chunk, j) => ({
-          id: `${docId}-chunk-${i + j}`,
-          values: embeddings[j],
-          metadata: {
-            documentId: docId,
-            documentName: file.name,
-            chunkIndex: i + j,
-            text: chunk,
-            topics: topics.join(', '),
-          },
-        }));
-
-        await index.upsert(vectors);
-      }
-    }
-
-    return Response.json({
-      id: docId,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      chunkCount,
-      summary,
-      topics,
-      status: 'ready',
-    });
+    return new Response(readable, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' } });
   } catch (error: unknown) {
-    console.error('Upload API error:', error);
-    const message = error instanceof Error ? error.message : 'Upload failed';
+    const message = error instanceof Error ? error.message : 'Internal server error';
     return Response.json({ error: message }, { status: 500 });
   }
 }
